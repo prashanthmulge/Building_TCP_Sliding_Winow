@@ -1,32 +1,8 @@
-# Labs 1 and 2: Cardinal TCP Client and Server
-
-- Lab 1 due **Friday, October 7, noon** (Hard deadline: October 9 at noon with late penalty)
-- Lab 2 due **Wednesday, October 19, noon** (Hard deadline: October 21 at noon with late penalty)
-- Please refer to the [course administrative handout](https://suclass.stanford.edu/c4x/Engineering/CS144/asset/admin.pdf) for the late policy
-
-### Links
-- [Virtual machine image](http://web.stanford.edu/class/cs144/assignments/cs144-vm.ova)
-- [Detailed VM setup instructions](http://web.stanford.edu/class/cs144/assignments/vm/vm-setup.html)
-- [Assignment files](https://bitbucket.org/cs144-1617/lab12.git)
-- [Submission website](https://web.stanford.edu/class/cs144/cgi-bin/submit/index.php)
-
-
-## 0. Collaboration Policy
-
-You should direct most questions to Piazza, but <u>_**do not**_</u> post any source code there. Please make a private post when appropriate.
-
-You must write all the code you hand in for the programming assignments, except for the code that we give you as part of the assignment and system library code. You are **not allowed** to show your code to anyone else in the class or look at anyone else's code. You also must not look at solutions from previous years. You may discuss the assignments with other students, but do not copy each others' code. Please refer to the course administrative handout for more details, and ask questions in Piazza if anything is unclear.
-
-
-## 1. Introduction
-
-This document covers two lab assignments. The second assignment builds on the first. <u>_**Please read through the entire lab assignment before beginning Lab 1**_</u>; there are some parts that are easier to build and make more sense with the whole picture in mind.
-
-### Your Task
-Your task is to implement a reliable, stop-and-wait (Lab 1) and sliding window (Lab 2) transport layer on top of the IP layer. This is a minimal, stripped-down version of TCP called **Cardinal TCP (cTCP)**. Cardinal TCP can fully interoperate with regular TCP implementations, but will not have many of the performance improvements and advanced algorithms expected in TCP today (e.g., congestion control). You will implement both the client and server components of cTCP.
+### Task
+Task is to implement a reliable, stop-and-wait and sliding window transport layer on top of the IP layer. This is a minimal, stripped-down version of TCP called **Cardinal TCP (cTCP)**. Cardinal TCP can fully interoperate with regular TCP implementations, but will not have many of the performance improvements and advanced algorithms expected in TCP today (e.g., congestion control). You will implement both the client and server components of cTCP.
 
 ### Getting Started
-Implementing cTCP requires being able to send IP packets which your code adds a transport (TCP) header to. Doing this in a way that doesn’t confuse the operating system requires some modifications to the OS kernel. You should therefore implement and test Lab 1 and Lab 2 inside a virtual machine that we’re providing. You may write code elsewhere, but it must compile and be tested using the VM provided, as it contains the correct configuration. **Do not upgrade your Ubuntu distribution in the VM, or you will lose this special kernel and cTCP will stop working.**
+Implementing cTCP requires being able to send IP packets which your code adds a transport (TCP) header to. Doing this in a way that doesn’t confuse the operating system requires some modifications to the OS kernel. You should therefore implement and test inside a virtual machine that we’re providing. You may write code elsewhere, but it must compile and be tested using the VM provided, as it contains the correct configuration. **Do not upgrade your Ubuntu distribution in the VM, or you will lose this special kernel and cTCP will stop working.**
 
 > Cardinal TCP creates TCP sockets that the operating system is not aware of. When the kernel receives a TCP segment for a cTCP connection, it does not recognize the connection and immediately sends a reset (segment with the `RST` bit set) in response, telling the other side to terminate the connection. The modified kernel does not send resets in response to unrecognized TCP segments and so allows cTCP, running in a Linux process, to manage a TCP connection.
 
@@ -40,13 +16,13 @@ Implementing cTCP requires being able to send IP packets which your code adds a 
 
 This year we have introduced assignment snapshotting in order to study student progress on the labs. For snapshotting to work, your `lab12` directory should be located in `cs144`'s home. Participation is optional and you will be prompted at submission time. For more information, contact Lisa Yan.
 
-## 2. Lab 1: Stop and Wait cTCP
+## 2. Stop and Wait cTCP
 
-The pictures in this section show how your cTCP implementation will work after you complete Lab 1.
+The pictures in this section show how your cTCP implementation will work after you complete.
 
 The client reads a stream of input data from standard input (STDIN), breaks it up into cTCP segments, and sends the segments to the server. The server reads these segments, ignoring corrupted and duplicate segments, outputting the corresponding data, in order, to STDOUT. Connections are _**bidirectional**_: the server also reads from STDIN and sends segments, and the client also receives segments and outputs data to STDOUT. **BOTH can be sending data segments _at the same time_!**
 
-![cTCP Lab 1 Setup](ctcp-1.png)
+![cTCP Setup](ctcp-1.png)
 
 Each "side", or direction, of the connection can be closed independently. When both sides of the connection are closed, the client and server clean up the associated state (linked lists, structs, anything being used specifically for this connection). This cleanup is often called "tear down", as in "tear down the connection."
 
@@ -95,17 +71,17 @@ Not all websites will respond. Ones that are known to work include the following
     - A `FIN` must also be acknowledged (and retransmitted if necessary).
 - **Cumulative acknowledgements.** Recall that TCP uses cumulative acknowledgements. The acknowledgement field of a segment contains the first byte that a receiver has not yet received (i.e. the byte it is expecting next). Your implementation must follow these semantics so it can interoperate with other TCP implementations. Your cTCP implementation does not have to handle sequence number overflowing/wrapping around in the lifetime of a connection. Your connections **MUST** always use `1` as the initial sequence number. Remember sequence numbers are incremented in terms of number of **bytes**, not **segments**.
 > Real TCP connections start with a randomly generated initial sequence number for each connection (you will learn later this quarter about how not doing so can make a connection vulnerable to some attacks). However, for simplicity, sequence numbers for cTCP start at `1`. The underlying library will do the translation into a randomized sequence number space.
-- **Stop-and-wait.** Lab 1 cTCP implements the **stop-and-wait** protocol with a window size of `MAX_SEG_DATA_SIZE` (constant defined in `ctcp.h`). For Lab 1, cTCP needs to support each direction of a connection having only a single segment **with data** in the network at any time. That segment will be at most (`MAX_SEG_DATA_SIZE` + headers) bytes in size. It may send out as many acknowledgements (non-data segments) as it wants, without having to wait.
+- **Stop-and-wait.** Stop and Wait cTCP implements the **stop-and-wait** protocol with a window size of `MAX_SEG_DATA_SIZE` (constant defined in `ctcp.h`). For Stop and Wait, cTCP needs to support each direction of a connection having only a single segment **with data** in the network at any time. That segment will be at most (`MAX_SEG_DATA_SIZE` + headers) bytes in size. It may send out as many acknowledgements (non-data segments) as it wants, without having to wait.
 - **Piggybacked `ACK`s.** Your cTCP needs to be able to receive and output a segment that has _both_ data and `ACK`. However, your implementation does not need to _send_ piggybacked `ACK`s and can output data and `ACK` segments separately.
 
 
-## 3. Lab 2: Sliding Windows and Network Services
+## 3. Sliding Windows and Network Services
 
-In Lab 2, you will extend cTCP to support multiple client connections to the server, as well as supporting a sliding window of `n * MAX_SEG_DATA_SIZE` (defined in `ctcp.h`), where `n >= 1`. We’ve combined Lab 1 and Lab 2 in a single document because knowing the requirements Lab 2 introduces will affect your Lab 1 design.
+In this, you will extend cTCP to support multiple client connections to the server, as well as supporting a sliding window of `n * MAX_SEG_DATA_SIZE` (defined in `ctcp.h`), where `n >= 1`. We’ve combined Stop and Wait and Sliding Window in a single document because knowing the requirements Sliding Window introduces will affect your Stop and Wait design.
 
-In Lab 2, you can initiate several copies of an application on the server side that will output to **STDERR**. A client can communicate with a server-side application by sending messages to the server, which will pipe the messages to STDIN of the application. The STDERR output of the application is piped back to the server, which will transmit the message back to the client. This lets you hook your cTCP up to programs which act as network services.
+In Sliding Window, you can initiate several copies of an application on the server side that will output to **STDERR**. A client can communicate with a server-side application by sending messages to the server, which will pipe the messages to STDIN of the application. The STDERR output of the application is piped back to the server, which will transmit the message back to the client. This lets you hook your cTCP up to programs which act as network services.
 
-![cTCP Lab 2 Setup](ctcp-3.png)
+![cTCP Sliding Window Setup](ctcp-3.png)
 
 Some applications you can test on include (but are not limited to) the following:
 - `sh`
@@ -118,7 +94,7 @@ Some applications you can test on include (but are not limited to) the following
 
 ### Requirements
 
-Lab 2 must support all the functionality required of Lab 1, but also the following additional functionality:
+Sliding Window must support all the functionality required of Stop and Wait, but also the following additional functionality:
 
 - **In-order delivery.** Your server and client should ensure that data is written in the correct order, even if the network layer reordered segments. Your receiver should buffer as many bytes as the client may send concurrently.
 - **Multiple clients.** Your server should handle multiple client connections. That means it will need to keep state for each client and separate message queues, as well as other supporting structures.
@@ -134,7 +110,7 @@ Lab 2 must support all the functionality required of Lab 1, but also the followi
 
 ## 4. The Code
 
-One thing to think about before you start is how you will maintain your send and receive windows. There are many reasonable ways to do so, but your decisions here will significantly affect the rest of your code. In Lab 1 cTCP only needs to handle one outstanding segment, but in Lab 2 it will need to handle a send window as well as a receive window. Cumulative acknowledgements mean the send window can be a simple FIFO queue, but lost segments mean the receive window will need to handle when there are holes. Memory management in systems software is extremely important, so think through where and when you will allocate and free any dynamic structures you need.
+One thing to think about before you start is how you will maintain your send and receive windows. There are many reasonable ways to do so, but your decisions here will significantly affect the rest of your code. In Stop and Wait cTCP only needs to handle one outstanding segment, but in Sliding Window it will need to handle a send window as well as a receive window. Cumulative acknowledgements mean the send window can be a simple FIFO queue, but lost segments mean the receive window will need to handle when there are holes. Memory management in systems software is extremely important, so think through where and when you will allocate and free any dynamic structures you need.
 
 ### Files
 Here are all the files that come in the starter code. Feel free to make new helper files as needed, **but if you do, make sure to add them to the `Makefile`**. We encourage you to look at the starter code if you have questions on how it works: it is not very long.
@@ -145,7 +121,7 @@ Here are all the files that come in the starter code. Feel free to make new help
 - `ctcp_sys_internal.h`/`ctcp_sys_internal.c` - Internal library that handles cTCP to TCP translations, etc. You will not need to look at this code at all and will not be using anything from it.
 - `ctcp_sys.h` - Definitions for system and connection-related functions like reading input, writing output, sending a segment to a connection, etc. You will be using most of these functions!
 - `ctcp_utils.h/ctcp_utils.c` - Helper functions like checksum, current time, etc.
-- `test.c` - Sample application that can be used in Lab 2. Feel free to modify this however you want. It will not be used in grading.
+- `test.c` - Sample application that can be used in Sliding Window. Feel free to modify this however you want. It will not be used in grading.
 - `Makefile` - No need to edit unless you're adding new files.
 - `README` - Information on how to build and run cTCP
 - `ctcp_README` - You will fill this out. See Section 6's cTCP README.
@@ -241,12 +217,12 @@ More specific details on how to build and run can be found in the `README` inclu
 **Server Mode**
 
     sudo ./ctcp -s -p [server port]
-    sudo ./ctcp -s -p [server port] -w [serer send window multiple] -- [program args]     (Lab 2)
+    sudo ./ctcp -s -p [server port] -w [serer send window multiple] -- [program args]     (Sliding Window)
 
 **Client Mode**
 
     sudo ./ctcp -c [server]:[server port] -p [client port]
-    sudo ./ctcp -c [server]:[server port] -p -w [client send window multiple]     (Lab 2)
+    sudo ./ctcp -c [server]:[server port] -p -w [client send window multiple]     (Sliding Window)
 
 ### Debugging
 **Note**: Any debug statements should be printed to STDERR, not STDOUT. This is because STDOUT is being used for the actual program output and it will be confusing for the grader. **Your final solution must not output any debugging information (as it will cause tests to fail).**
@@ -256,7 +232,7 @@ To output to STDERR, use the following function:
 	fprintf(stderr, "Debug message here", ...);
 	fprintf(stderr, "Here's an int: %d", int_number);
 
-We encourage you to use gdb and valgrind. These tools should make debugging your code easier and using them is a valuable skill to have going forward. In addition, a valgrind output will be required in Lab 2.
+We encourage you to use gdb and valgrind. These tools should make debugging your code easier and using them is a valuable skill to have going forward. In addition, a valgrind output will be required in Sliding Window.
 
 ### Logging
 Logging can be enabled with `-l` on one host to view a log of all segments sent and received:
@@ -313,11 +289,11 @@ You will attach a `ctcp_README` file to your submission. This file should be 2-3
 - **Implementation Challenges** - Describe the parts of code that you found most troublesome and explain why. Reflect on how you overcame those challenges and what helped you finally understand the concept that was giving you trouble.
 - **Testing** - Describe the tests you performed on your code to evaluate functionality and robustness. Enumerate possible edge cases and explain how you tested for them. Additionally, talk about general testing strategies you used to test systems code.
 - **Remaining Bugs** - Point out and explain as best you can any bugs that remain in the code.
-- **Memory Management** - (Lab 2 only) Have valgrind output for both the client and server and explain any memory leaks that valgrind might have discovered.
+- **Memory Management** - (Sliding Window only) Have valgrind output for both the client and server and explain any memory leaks that valgrind might have discovered.
     - If you receive any valgrind warnings in a file other than `ctcp.c`, then you probably did not free the passed-in `segment` to a cTCP function.
     - valgrind can be invoked by running: `sudo valgrind --leak-check=full --show-leak-kinds=all ./ctcp [params for cTCP]`
 
-You should have a `ctcp_README` for both Labs 1 and 2. Your Lab 2 README should only discuss the things you added for Lab 2 (so don't just copy over your README from Lab 1. If you do this, points will be deducted accordingly).
+You should have a `ctcp_README` for both Labs 1 and 2. Your Sliding Window README should only discuss the things you added for Sliding Window (so don't just copy over your README from Stop and Wait. If you do this, points will be deducted accordingly).
 
 ### Submission
 To package up your code, run:
@@ -343,9 +319,9 @@ To get a list of all tests:
 
 	sudo python tester-student.py --list
 
-To run all tests for Lab 2:
+To run all tests for Sliding Window:
 
-	sudo python tester-student.py --lab2
+	sudo python tester-student.py --Sliding Window
 
 
 ### Coding Style
@@ -366,7 +342,7 @@ Most questions and answers can be found on Piazza. This is merely a list of logi
 <br>No, you must examine the length field of the segment and should not assume the cTCP segment you receive is the correct length. The network might truncate or pad segments.
 - **Why is a double pointer `prev` used for the `ctcp_state_t` linked list?**
 <br>This is a clever trick that enables it to delete elements of a linked list efficiently with a bit less pointer rewiring than if `prev` were a single pointer.
-- **What sliding window protocol are we supposed to implement for Lab 2?**
+- **What sliding window protocol are we supposed to implement for Sliding Window?**
 <br>You MUST use selective repeat.
 - **Why do all commands have to be run with sudo?**
 <br>cTCP uses raw sockets, which require root in order to open. You can avoid having to type in `sudo` each time if you run the shell as root (`sudo bash`).
